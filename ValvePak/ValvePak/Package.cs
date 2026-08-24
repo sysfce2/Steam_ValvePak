@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// VPK (Valve Pak) files are uncompressed archives used to package game content.

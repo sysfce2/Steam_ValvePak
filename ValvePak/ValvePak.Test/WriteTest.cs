@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Text;
 using NUnit.Framework;
-using SteamDatabase.ValvePak;
 
 namespace ValvePak.Test
 {
@@ -12,7 +11,7 @@ namespace ValvePak.Test
 		[Test]
 		public void CreateNewPackage()
 		{
-			var oldPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var oldPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 
 			using var packageOld = new Package();
 			packageOld.Read(oldPath);
@@ -169,7 +168,7 @@ namespace ValvePak.Test
 		[Test]
 		public void WriteThrowsWhenIsDirVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_dir.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);

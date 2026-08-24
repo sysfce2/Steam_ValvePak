@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	sealed class CaseInsensitivePackageEntryComparer(StringComparison comparison) : IComparer<PackageEntry>
 	{

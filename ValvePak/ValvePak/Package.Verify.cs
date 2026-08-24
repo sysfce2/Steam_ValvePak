@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// VPK (Valve Pak) files are uncompressed archives used to package game content.

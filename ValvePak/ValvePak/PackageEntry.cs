@@ -1,4 +1,4 @@
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// Represents a file entry in a VPK package.

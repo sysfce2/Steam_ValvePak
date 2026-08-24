@@ -3,7 +3,6 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Security.Cryptography;
 using NUnit.Framework;
-using SteamDatabase.ValvePak;
 
 namespace ValvePak.Test
 {
@@ -16,7 +15,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ReturnsCorrectStreamsForSplitPackages()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_dir.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
@@ -33,7 +32,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ReturnsCorrectStreams()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
@@ -50,7 +49,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ReturnsCorrectStreamsWhenUsingFileStream()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 			using var fileStream = File.OpenRead(path);
 
 			using var package = new Package();
@@ -69,7 +68,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ReturnsCorrectStreamsWhenUsingMemoryStream()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 			using var memoryStream = new MemoryStream(File.ReadAllBytes(path));
 
 			using var package = new Package();

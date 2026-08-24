@@ -1,4 +1,4 @@
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// Represents the hash algorithm type used in VPK archive MD5 section entries.

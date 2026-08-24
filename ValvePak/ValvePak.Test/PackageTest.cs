@@ -4,7 +4,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using NUnit.Framework;
-using SteamDatabase.ValvePak;
 
 namespace ValvePak.Test
 {
@@ -145,7 +144,7 @@ namespace ValvePak.Test
 		[Test]
 		public void FindEntryRoot()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
@@ -183,7 +182,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ThrowsNullArgumentInFindEntry()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
@@ -336,7 +335,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ExtractInlineVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 
 			TestVPKExtraction(path);
 		}
@@ -344,7 +343,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ExtractDirVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_dir.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
 
 			TestVPKExtraction(path);
 		}
@@ -352,7 +351,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ExtractDirVPKWithoutSuffix()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_without_suffix.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_without_suffix.vpk");
 
 			TestVPKExtraction(path);
 		}
@@ -360,7 +359,7 @@ namespace ValvePak.Test
 		[Test]
 		public void ExtractIntoUserProvidedByteArray()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_single.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
 			using var package = new Package();
 			package.Read(path);
 
@@ -481,7 +480,7 @@ namespace ValvePak.Test
 		[Test]
 		public void OptimizingAfterReadThrows()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "steamdb_test_dir.vpk");
+			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);

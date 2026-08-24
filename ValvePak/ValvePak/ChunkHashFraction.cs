@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// Represents an entry in the VPK archive hashes section, containing checksum information for a chunk of archive data.

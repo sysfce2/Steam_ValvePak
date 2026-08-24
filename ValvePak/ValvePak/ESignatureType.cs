@@ -1,4 +1,4 @@
-namespace SteamDatabase.ValvePak
+namespace ValvePak
 {
 	/// <summary>
 	/// Represents the signature type used in VPK archives.
