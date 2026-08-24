@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="ValvePak/ValvePak.csproj" />
-  <Project Path="ValvePak.Test/ValvePak.Test.csproj" />
-</Solution>

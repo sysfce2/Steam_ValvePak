@@ -27,15 +27,12 @@ jobs:
 
     - name: Build
       run: dotnet build -c Release
-      working-directory: ValvePak
 
     - name: Test
       run: dotnet test -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:CoverletOutput='./lcov.info' /p:Include="[ValvePak*]*"
-      working-directory: ValvePak/ValvePak.Test
 
     - name: Create nupkg
       run: dotnet pack --configuration Release
-      working-directory: ValvePak/ValvePak
 
     - name: Upload nupkg
       uses: actions/upload-artifact@v7
@@ -68,8 +65,7 @@ jobs:
       run: mv artifacts/ValvePak.*.nupkg artifacts/ValvePak.nupkg
 
     - name: Display artifacts folder structure
-      run: ls -Rl
-      working-directory: artifacts
+      run: ls -Rl artifacts
 
     - name: Create release
       uses: softprops/action-gh-release@v3
