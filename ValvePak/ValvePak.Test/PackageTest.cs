@@ -3,368 +3,366 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using TUnit.Assertions.Enums;
 
 namespace ValvePak.Test
 {
-	[TestFixture]
 	internal sealed class PackageTest
 	{
 		[Test]
-		public void ParseVPK()
+		public async Task ParseVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			package.VerifyHashes();
 
-			Assert.That(package.IsSignatureValid(), Is.True);
+			await Assert.That(package.IsSignatureValid()).IsTrue();
 		}
 
 		[Test]
-		public void TestOriginalFileNameNotEndingInVpk()
+		public async Task TestOriginalFileNameNotEndingInVpk()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "vpk_file_not_ending_in_vpk.vpk.0123456789abc");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "vpk_file_not_ending_in_vpk.vpk.0123456789abc");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.That(package.FindEntry("kitten.jpg")?.CRC32, Is.EqualTo(0x9C800116));
+			await Assert.That(package.FindEntry("kitten.jpg")?.CRC32).IsEqualTo(0x9C800116u);
 		}
 
 		[Test]
-		public void ThrowsOnInvalidPackage()
+		public async Task ThrowsOnInvalidPackage()
 		{
 			using var resource = new Package();
 			using var ms = new MemoryStream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 
 			// Should yell about not setting file name
-			Assert.Throws<InvalidOperationException>(() => resource.Read(ms));
+			await Assert.That(() => resource.Read(ms)).ThrowsExactly<InvalidOperationException>();
 
 			resource.SetFileName("a.vpk");
 
-			Assert.Throws<InvalidDataException>(() => resource.Read(ms));
+			await Assert.That(() => resource.Read(ms)).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void ThrowsOnCorrectHeaderWrongVersion()
+		public async Task ThrowsOnCorrectHeaderWrongVersion()
 		{
 			using var resource = new Package();
 			resource.SetFileName("a.vpk");
 
 			using var ms = new MemoryStream([0x34, 0x12, 0xAA, 0x55, 0x11, 0x11, 0x11, 0x11, 0x22, 0x22, 0x22, 0x22]);
-			Assert.Throws<InvalidDataException>(() => resource.Read(ms));
+			await Assert.That(() => resource.Read(ms)).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void FindEntryDeep()
+		public async Task FindEntryDeep()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("addons\\chess\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/chess\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("\\addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("/addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("\\addons/chess/hello_github_reader.vdf"), Is.Null);
-				Assert.That(package.FindEntry("\\addons/hello_github_reader/chess.vdf"), Is.Null);
-				Assert.That(package.FindEntry(string.Empty), Is.Null);
-				Assert.That(package.FindEntry(" "), Is.Null);
+				await Assert.That(package.FindEntry("addons\\chess\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/chess\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("\\addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("/addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("\\addons/chess/hello_github_reader.vdf")).IsNull();
+				await Assert.That(package.FindEntry("\\addons/hello_github_reader/chess.vdf")).IsNull();
+				await Assert.That(package.FindEntry(string.Empty)).IsNull();
+				await Assert.That(package.FindEntry(" ")).IsNull();
 			}
 		}
 
 		[Test]
-		public void TestBinarySearch()
+		public async Task TestBinarySearch()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			using var package = new Package();
 			package.OptimizeEntriesForBinarySearch();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("addons\\chess\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/chess\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("\\addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("/addons/chess/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("\\addons/chess/hello_github_reader.vdf"), Is.Null);
-				Assert.That(package.FindEntry("\\addons/hello_github_reader/chess.vdf"), Is.Null);
-				Assert.That(package.FindEntry(string.Empty), Is.Null);
-				Assert.That(package.FindEntry(" "), Is.Null);
+				await Assert.That(package.FindEntry("addons\\chess\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/chess\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("\\addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("/addons/chess/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("\\addons/chess/hello_github_reader.vdf")).IsNull();
+				await Assert.That(package.FindEntry("\\addons/hello_github_reader/chess.vdf")).IsNull();
+				await Assert.That(package.FindEntry(string.Empty)).IsNull();
+				await Assert.That(package.FindEntry(" ")).IsNull();
 			}
 
 			foreach (var extension in package.Entries!.Values)
 			{
 				foreach (var entry in extension)
 				{
-					Assert.That(package.FindEntry(entry.GetFullPath()), Is.EqualTo(entry));
+					await Assert.That(package.FindEntry(entry.GetFullPath())).IsEqualTo(entry);
 				}
 			}
 		}
 
 		[Test]
-		public void TestBinarySearchCaseInsensitive()
+		public async Task TestBinarySearchCaseInsensitive()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			using var package = new Package();
 			package.OptimizeEntriesForBinarySearch(StringComparison.OrdinalIgnoreCase);
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("ADDONS\\chess\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/CHESS\\chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("addons/chess/CHESS.vdf")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("\\addons/chess/chess.VDF")?.CRC32, Is.EqualTo(0xA4115395));
-				Assert.That(package.FindEntry("/addons/CHESS/chess.vdf")?.CRC32, Is.EqualTo(0xA4115395));
+				await Assert.That(package.FindEntry("ADDONS\\chess\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/CHESS\\chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("addons/chess/CHESS.vdf")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("\\addons/chess/chess.VDF")?.CRC32).IsEqualTo(0xA4115395u);
+				await Assert.That(package.FindEntry("/addons/CHESS/chess.vdf")?.CRC32).IsEqualTo(0xA4115395u);
 
-				Assert.That(package.FindEntry("\\addons/CHESS/hello_github_reader.vdf"), Is.Null);
-				Assert.That(package.FindEntry("\\addons/hello_github_reader/CHESS.vdf"), Is.Null);
+				await Assert.That(package.FindEntry("\\addons/CHESS/hello_github_reader.vdf")).IsNull();
+				await Assert.That(package.FindEntry("\\addons/hello_github_reader/CHESS.vdf")).IsNull();
 			}
 
 			foreach (var extension in package.Entries!.Values)
 			{
 				foreach (var entry in extension)
 				{
-					Assert.That(package.FindEntry(entry.GetFullPath()), Is.EqualTo(entry));
+					await Assert.That(package.FindEntry(entry.GetFullPath())).IsEqualTo(entry);
 				}
 			}
 		}
 
 		[Test]
-		public void FindEntryRoot()
+		public async Task FindEntryRoot()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("kitten.jpg")?.CRC32, Is.EqualTo(0x9C800116));
-				Assert.That(package.FindEntry("\\kitten.jpg")?.CRC32, Is.EqualTo(0x9C800116));
-				Assert.That(package.FindEntry("/kitten.jpg")?.CRC32, Is.EqualTo(0x9C800116));
-				Assert.That(package.FindEntry("\\/kitten.jpg")?.CRC32, Is.EqualTo(0x9C800116));
+				await Assert.That(package.FindEntry("kitten.jpg")?.CRC32).IsEqualTo(0x9C800116u);
+				await Assert.That(package.FindEntry("\\kitten.jpg")?.CRC32).IsEqualTo(0x9C800116u);
+				await Assert.That(package.FindEntry("/kitten.jpg")?.CRC32).IsEqualTo(0x9C800116u);
+				await Assert.That(package.FindEntry("\\/kitten.jpg")?.CRC32).IsEqualTo(0x9C800116u);
 			}
 		}
 
 		[Test]
-		public void ThrowsNullArgumentInSetFilename()
+		public async Task ThrowsNullArgumentInSetFilename()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.SetFileName(null!));
+			await Assert.That(() => package.SetFileName(null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void ThrowsNullArgumentInReadStream()
+		public async Task ThrowsNullArgumentInReadStream()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.Read((Stream)null!));
+			await Assert.That(() => package.Read((Stream)null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void ThrowsNullArgumentInnReadString()
+		public async Task ThrowsNullArgumentInnReadString()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.Read((string)null!));
+			await Assert.That(() => package.Read((string)null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void ThrowsNullArgumentInFindEntry()
+		public async Task ThrowsNullArgumentInFindEntry()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.Throws<ArgumentNullException>(() => package.FindEntry(null!));
+			await Assert.That(() => package.FindEntry(null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void ThrowsNullArgumentInReadEntry()
+		public async Task ThrowsNullArgumentInReadEntry()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.ReadEntry(null!, out var output));
+			await Assert.That(() => package.ReadEntry(null!, out var output)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void FindEntrySpacesAndExtensionless()
+		public async Task FindEntrySpacesAndExtensionless()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("test")?.CRC32, Is.EqualTo(0x0BA144CC));
-				Assert.That(package.FindEntry("folder with space/test")?.CRC32, Is.EqualTo(0xBF108706));
-				Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.CRC32, Is.EqualTo(0x09321FC0));
-				Assert.That(package.FindEntry("folder with space/file name with space.txt")?.CRC32, Is.EqualTo(0x76D91432));
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.CRC32, Is.EqualTo(0x15C1490F));
-				Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.CRC32, Is.EqualTo(0x32CFF012));
-				Assert.That(package.FindEntry("UpperCaseFolder/bad_file_forfun.txt"), Is.Null);
-				Assert.That(package.FindEntry("uppercasefolder/UpperCaseFile.txt"), Is.Null);
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.TXT"), Is.Null);
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt2"), Is.Null);
+				await Assert.That(package.FindEntry("test")?.CRC32).IsEqualTo(0x0BA144CCu);
+				await Assert.That(package.FindEntry("folder with space/test")?.CRC32).IsEqualTo(0xBF108706u);
+				await Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.CRC32).IsEqualTo(0x09321FC0u);
+				await Assert.That(package.FindEntry("folder with space/file name with space.txt")?.CRC32).IsEqualTo(0x76D91432u);
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.CRC32).IsEqualTo(0x15C1490Fu);
+				await Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.CRC32).IsEqualTo(0x32CFF012u);
+				await Assert.That(package.FindEntry("UpperCaseFolder/bad_file_forfun.txt")).IsNull();
+				await Assert.That(package.FindEntry("uppercasefolder/UpperCaseFile.txt")).IsNull();
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.TXT")).IsNull();
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt2")).IsNull();
 			}
 		}
 
 		[Test]
-		public void ThrowsOnInvalidCRC32()
+		public async Task ThrowsOnInvalidCRC32()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			var file = package.FindEntry("UpperCaseFolder/UpperCaseFile.txt");
-			Assert.That(file, Is.Not.Null);
-			Assert.That(file.CRC32, Is.EqualTo(0x32CFF012));
+			await Assert.That(file).IsNotNull();
+			await Assert.That(file.CRC32).IsEqualTo(0x32CFF012u);
 
 			file.CRC32 = 0xDEADBEEF;
 
-			Assert.Throws<InvalidDataException>(() => package.ReadEntry(file, out _));
-			var ex = Assert.Throws<InvalidDataException>(() => package.ReadEntry(file, out _, true));
-			Assert.That(ex.Message, Is.EqualTo("CRC32 mismatch for read data (expected DEADBEEF, got 32CFF012)."));
-			Assert.DoesNotThrow(() => package.ReadEntry(file, out _, false));
+			await Assert.That(() => package.ReadEntry(file, out _)).ThrowsExactly<InvalidDataException>();
+			await Assert.That(() => package.ReadEntry(file, out _, true)).ThrowsExactly<InvalidDataException>()
+				.WithMessage("CRC32 mismatch for read data (expected DEADBEEF, got 32CFF012).", StringComparison.Ordinal);
+			await Assert.That(() => package.ReadEntry(file, out _, false)).ThrowsNothing();
 		}
 
 		[Test]
-		public void ThrowsOnInvalidEntryTerminator()
+		public async Task ThrowsOnInvalidEntryTerminator()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "invalid_terminator.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "invalid_terminator.vpk");
 
 			using var package = new Package();
-			Assert.Throws<FormatException>(() => package.Read(path));
+			await Assert.That(() => package.Read(path)).ThrowsExactly<FormatException>();
 		}
 
 		[Test]
-		public void TestGetFullPath()
+		public async Task TestGetFullPath()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
-
-			using var package = new Package();
-			package.Read(path);
-
-			using (Assert.EnterMultipleScope())
-			{
-				Assert.That(package.FindEntry("test")?.GetFullPath(), Is.EqualTo("test"));
-				Assert.That(package.FindEntry("folder with space/test")?.GetFullPath(), Is.EqualTo("folder with space/test"));
-				Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.GetFullPath(), Is.EqualTo("folder with space/space_extension. txt"));
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.GetFullPath(), Is.EqualTo("uppercasefolder/bad_file_forfun.txt"));
-				Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.GetFullPath(), Is.EqualTo("UpperCaseFolder/UpperCaseFile.txt"));
-
-				Assert.That(package.FindEntry("test")?.GetFileName(), Is.EqualTo("test"));
-				Assert.That(package.FindEntry("folder with space/test")?.GetFileName(), Is.EqualTo("test"));
-				Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.GetFileName(), Is.EqualTo("space_extension. txt"));
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.GetFileName(), Is.EqualTo("bad_file_forfun.txt"));
-			}
-		}
-
-		[Test]
-		public void TestPackageEntryToString()
-		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.FindEntry("test")?.ToString(), Is.EqualTo("test crc=0xba144cc metadatasz=0 fnumber=0 ofs=0x00 sz=39"));
-				Assert.That(package.FindEntry("folder with space/test")?.ToString(), Is.EqualTo("folder with space/test crc=0xbf108706 metadatasz=0 fnumber=0 ofs=0x52 sz=41"));
-				Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.ToString(), Is.EqualTo("folder with space/space_extension. txt crc=0x9321fc0 metadatasz=0 fnumber=0 ofs=0x7b sz=30"));
-				Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.ToString(), Is.EqualTo("uppercasefolder/bad_file_forfun.txt crc=0x15c1490f metadatasz=0 fnumber=0 ofs=0xa2 sz=2"));
-				Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.ToString(), Is.EqualTo("UpperCaseFolder/UpperCaseFile.txt crc=0x32cff012 metadatasz=0 fnumber=0 ofs=0x27 sz=43"));
+				await Assert.That(package.FindEntry("test")?.GetFullPath()).IsEqualTo("test");
+				await Assert.That(package.FindEntry("folder with space/test")?.GetFullPath()).IsEqualTo("folder with space/test");
+				await Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.GetFullPath()).IsEqualTo("folder with space/space_extension. txt");
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.GetFullPath()).IsEqualTo("uppercasefolder/bad_file_forfun.txt");
+				await Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.GetFullPath()).IsEqualTo("UpperCaseFolder/UpperCaseFile.txt");
+
+				await Assert.That(package.FindEntry("test")?.GetFileName()).IsEqualTo("test");
+				await Assert.That(package.FindEntry("folder with space/test")?.GetFileName()).IsEqualTo("test");
+				await Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.GetFileName()).IsEqualTo("space_extension. txt");
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.GetFileName()).IsEqualTo("bad_file_forfun.txt");
 			}
 		}
 
 		[Test]
-		public void TestRespawnVPK()
+		public async Task TestPackageEntryToString()
+		{
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
+
+			using var package = new Package();
+			package.Read(path);
+
+			using (Assert.Multiple())
+			{
+				await Assert.That(package.FindEntry("test")?.ToString()).IsEqualTo("test crc=0xba144cc metadatasz=0 fnumber=0 ofs=0x00 sz=39");
+				await Assert.That(package.FindEntry("folder with space/test")?.ToString()).IsEqualTo("folder with space/test crc=0xbf108706 metadatasz=0 fnumber=0 ofs=0x52 sz=41");
+				await Assert.That(package.FindEntry("folder with space\\space_extension. txt")?.ToString()).IsEqualTo("folder with space/space_extension. txt crc=0x9321fc0 metadatasz=0 fnumber=0 ofs=0x7b sz=30");
+				await Assert.That(package.FindEntry("uppercasefolder/bad_file_forfun.txt")?.ToString()).IsEqualTo("uppercasefolder/bad_file_forfun.txt crc=0x15c1490f metadatasz=0 fnumber=0 ofs=0xa2 sz=2");
+				await Assert.That(package.FindEntry("UpperCaseFolder/UpperCaseFile.txt")?.ToString()).IsEqualTo("UpperCaseFolder/UpperCaseFile.txt crc=0x32cff012 metadatasz=0 fnumber=0 ofs=0x27 sz=43");
+			}
+		}
+
+		[Test]
+		public async Task TestRespawnVPK()
 		{
 			using var resource = new Package();
 			resource.SetFileName("apexlegends.vpk");
 
 			using var ms = new MemoryStream([0x34, 0x12, 0xAA, 0x55, 0x02, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00]);
-			Assert.Throws<NotSupportedException>(() => resource.Read(ms));
+			await Assert.That(() => resource.Read(ms)).ThrowsExactly<NotSupportedException>();
 		}
 
 		[Test]
-		public void TestFileReadWithPreloadedBytes()
+		public async Task TestFileReadWithPreloadedBytes()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "preload.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "preload.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			var file = package.FindEntry("lorem.txt");
 
-			Assert.That(file, Is.Not.Null);
+			await Assert.That(file).IsNotNull();
 
 			package.ReadEntry(file, out var allBytes);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file.ToString(), Is.EqualTo("lorem.txt crc=0xf2cafa54 metadatasz=56 fnumber=32767 ofs=0x00 sz=588"));
-				Assert.That(file.CRC32, Is.EqualTo(0xF2CAFA54));
-				Assert.That(file.SmallData, Has.Length.EqualTo(56));
-				Assert.That(file.Length, Is.EqualTo(588));
-				Assert.That(file.SmallData, Is.EqualTo(Encoding.ASCII.GetBytes("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")));
-				Assert.That(
-					allBytes,
-					Is.EqualTo(Encoding.ASCII.GetBytes("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam aliquam dapibus lorem, id suscipit urna pharetra non. " +
+				await Assert.That(file.ToString()).IsEqualTo("lorem.txt crc=0xf2cafa54 metadatasz=56 fnumber=32767 ofs=0x00 sz=588");
+				await Assert.That(file.CRC32).IsEqualTo(0xF2CAFA54u);
+				await Assert.That(file.SmallData).Count().IsEqualTo(56);
+				await Assert.That(file.Length).IsEqualTo(588u);
+				await Assert.That(file.SmallData).IsEquivalentTo(Encoding.ASCII.GetBytes("Lorem ipsum dolor sit amet, consectetur adipiscing elit."), CollectionOrdering.Matching);
+				await Assert.That(allBytes).IsEquivalentTo(Encoding.ASCII.GetBytes("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam aliquam dapibus lorem, id suscipit urna pharetra non. " +
 					"Vestibulum eu orci ut turpis rhoncus ullamcorper non id nisi. Class aptent taciti sociosqu ad litora torquent per " +
 					"conubia nostra, per inceptos himenaeos. Ut rutrum pulvinar elit, in aliquet eros lobortis eget. Vestibulum ornare " +
 					"faucibus erat, vel fringilla purus scelerisque tempor. Proin feugiat blandit sapien eget tempus. Praesent gravida in " +
 					"risus a accumsan. Praesent egestas tincidunt dui nec laoreet. Sed ac lacus non tortor consectetur consectetur a ac " +
-					"lacus. In rhoncus turpis a nisl volutpat, nec cursus urna tincidunt.\n")));
+					"lacus. In rhoncus turpis a nisl volutpat, nec cursus urna tincidunt.\n"), CollectionOrdering.Matching);
 			}
 		}
 
 		[Test]
-		public void ExtractInlineVPK()
+		public async Task ExtractInlineVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 
-			TestVPKExtraction(path);
+			await TestVPKExtraction(path);
 		}
 
 		[Test]
-		public void ExtractDirVPK()
+		public async Task ExtractDirVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_dir.vpk");
 
-			TestVPKExtraction(path);
+			await TestVPKExtraction(path);
 		}
 
 		[Test]
-		public void ExtractDirVPKWithoutSuffix()
+		public async Task ExtractDirVPKWithoutSuffix()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_without_suffix.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_without_suffix.vpk");
 
-			TestVPKExtraction(path);
+			await TestVPKExtraction(path);
 		}
 
 		[Test]
-		public void ExtractIntoUserProvidedByteArray()
+		public async Task ExtractIntoUserProvidedByteArray()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 			using var package = new Package();
 			package.Read(path);
 
 			var entry = package.FindEntry("kitten.jpg");
-			Assert.That(entry, Is.Not.Null);
+			await Assert.That(entry).IsNotNull();
 			var biggerBuffer = new byte[entry.TotalLength + 256];
 			package.ReadEntry(entry, biggerBuffer, validateCrc: true);
 
@@ -372,191 +370,191 @@ namespace ValvePak.Test
 			package.ReadEntry(entry, correctBuffer, validateCrc: true);
 
 			var smallBuffer = new byte[entry.TotalLength - 1];
-			Assert.Throws<ArgumentOutOfRangeException>(() => package.ReadEntry(entry, smallBuffer));
+			await Assert.That(() => package.ReadEntry(entry, smallBuffer)).ThrowsExactly<ArgumentOutOfRangeException>();
 		}
 
 		[Test]
-		public void TestFileChecksums()
+		public async Task TestFileChecksums()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
-			Assert.DoesNotThrow(() => package.VerifyFileChecksums());
+			await Assert.That(() => package.VerifyFileChecksums()).ThrowsNothing();
 
 			var file = package.FindEntry("UpperCaseFolder/UpperCaseFile.txt");
-			Assert.That(file, Is.Not.Null);
-			Assert.That(file.CRC32, Is.EqualTo(0x32CFF012));
+			await Assert.That(file).IsNotNull();
+			await Assert.That(file.CRC32).IsEqualTo(0x32CFF012u);
 
 			file.CRC32 = 0xDEADBEEF;
 
-			Assert.Throws<InvalidDataException>(() => package.VerifyFileChecksums());
+			await Assert.That(() => package.VerifyFileChecksums()).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void ParsesCS2VPKWithRSA4096Signature()
+		public async Task ParsesCS2VPKWithRSA4096Signature()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "cs2_new_signature.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "cs2_new_signature.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			package.VerifyHashes();
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.Signature, Is.Null);
-				Assert.That(package.PublicKey, Is.Null);
-				Assert.That(package.SignatureType, Is.EqualTo(ESignatureType.OnlyFileChecksum));
-				Assert.That(package.IsSignatureValid(), Is.True);
+				await Assert.That(package.Signature).IsNull();
+				await Assert.That(package.PublicKey).IsNull();
+				await Assert.That(package.SignatureType).IsEqualTo(ESignatureType.OnlyFileChecksum);
+				await Assert.That(package.IsSignatureValid()).IsTrue();
 			}
 		}
 
 		[Test]
-		public void ReadCSGOPak01WithRSA4096Signature()
+		public async Task ReadCSGOPak01WithRSA4096Signature()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "cs2_new_signature_actually_signed.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "cs2_new_signature_actually_signed.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			package.VerifyHashes();
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.SignatureType, Is.EqualTo(ESignatureType.OnlyFileChecksum));
-				Assert.That(package.PublicKey, Is.Not.Null);
-				Assert.That(package.Signature, Is.Not.Null);
-				Assert.That(package.PublicKey!, Has.Length.EqualTo(550));
-				Assert.That(package.Signature!, Has.Length.EqualTo(512));
-				Assert.That(package.IsSignatureValid(), Is.True);
+				await Assert.That(package.SignatureType).IsEqualTo(ESignatureType.OnlyFileChecksum);
+				await Assert.That(package.PublicKey).IsNotNull();
+				await Assert.That(package.Signature).IsNotNull();
+				await Assert.That(package.PublicKey!).Count().IsEqualTo(550);
+				await Assert.That(package.Signature!).Count().IsEqualTo(512);
+				await Assert.That(package.IsSignatureValid()).IsTrue();
 			}
 		}
 
 		[Test]
-		public void InvalidTreeChecksumThrows()
+		public async Task InvalidTreeChecksumThrows()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "bad_hash_a.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "bad_hash_a.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.Throws<InvalidDataException>(() => package.VerifyHashes());
+			await Assert.That(() => package.VerifyHashes()).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void InvalidArchiveMD5EntriesChecksumThrows()
+		public async Task InvalidArchiveMD5EntriesChecksumThrows()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "bad_hash_b.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "bad_hash_b.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.Throws<InvalidDataException>(() => package.VerifyHashes());
+			await Assert.That(() => package.VerifyHashes()).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void InvalidWholeFileChecksumThrows()
+		public async Task InvalidWholeFileChecksumThrows()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "bad_hash_c.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "bad_hash_c.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.Throws<InvalidDataException>(() => package.VerifyHashes());
+			await Assert.That(() => package.VerifyHashes()).ThrowsExactly<InvalidDataException>();
 		}
 
 		[Test]
-		public void InvalidSignatureFails()
+		public async Task InvalidSignatureFails()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "bad_signature.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "bad_signature.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.That(package.IsSignatureValid(), Is.False);
+			await Assert.That(package.IsSignatureValid()).IsFalse();
 		}
 
 		[Test]
-		public void OptimizingAfterReadThrows()
+		public async Task OptimizingAfterReadThrows()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.Throws<InvalidOperationException>(() => package.OptimizeEntriesForBinarySearch());
+			await Assert.That(() => package.OptimizeEntriesForBinarySearch()).ThrowsExactly<InvalidOperationException>();
 		}
 
 		[Test]
-		public void DoesNotThrowWhenFindingInUnintializedPackage()
+		public async Task DoesNotThrowWhenFindingInUnintializedPackage()
 		{
 			using var package = new Package();
 
-			Assert.That(package.FindEntry("test.txt"), Is.Null);
+			await Assert.That(package.FindEntry("test.txt")).IsNull();
 		}
 
 		[Test]
-		public void ThrowsDueToMissingPakFile()
+		public async Task ThrowsDueToMissingPakFile()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			package.VerifyHashes();
 
-			Assert.Throws<FileNotFoundException>(() => package.VerifyChunkHashes());
+			await Assert.That(() => package.VerifyChunkHashes()).ThrowsExactly<FileNotFoundException>();
 		}
 
 		[Test]
-		public void TestVerifyChunkHashes()
+		public async Task TestVerifyChunkHashes()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "fall_2025_rewardfx.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "fall_2025_rewardfx.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.DoesNotThrow(package.VerifyHashes);
-			Assert.DoesNotThrow(() => package.VerifyChunkHashes(null));
+			await Assert.That(() => package.VerifyHashes()).ThrowsNothing();
+			await Assert.That(() => package.VerifyChunkHashes(null)).ThrowsNothing();
 		}
 
 		[Test]
-		public void TestVerifyChunkHashesBlake3()
+		public async Task TestVerifyChunkHashesBlake3()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "monster_hunter_dashboard_balek3_chunk_hash.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "monster_hunter_dashboard_balek3_chunk_hash.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.DoesNotThrow(package.VerifyHashes);
-			Assert.DoesNotThrow(() => package.VerifyChunkHashes(null));
+			await Assert.That(() => package.VerifyHashes()).ThrowsNothing();
+			await Assert.That(() => package.VerifyChunkHashes(null)).ThrowsNothing();
 		}
 
 		[Test]
-		public void SetFileNameStripsVpkExtensionAndDirSuffix()
+		public async Task SetFileNameStripsVpkExtensionAndDirSuffix()
 		{
 			using var package1 = new Package();
 			package1.SetFileName("foo_dir.vpk");
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package1.FileName, Is.EqualTo("foo"));
-				Assert.That(package1.IsDirVPK, Is.True);
+				await Assert.That(package1.FileName).IsEqualTo("foo");
+				await Assert.That(package1.IsDirVPK).IsTrue();
 			}
 
 			using var package2 = new Package();
 			package2.SetFileName("bar.vpk");
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package2.FileName, Is.EqualTo("bar"));
-				Assert.That(package2.IsDirVPK, Is.False);
+				await Assert.That(package2.FileName).IsEqualTo("bar");
+				await Assert.That(package2.IsDirVPK).IsFalse();
 			}
 		}
 
 		[Test]
-		public void VerifyHashesThrowsOnVersion1()
+		public async Task VerifyHashesThrowsOnVersion1()
 		{
 			using var package = new Package();
 			package.SetFileName("a.vpk");
@@ -565,21 +563,21 @@ namespace ValvePak.Test
 			using var ms = new MemoryStream([0x34, 0x12, 0xAA, 0x55, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
 			package.Read(ms);
 
-			var ex = Assert.Throws<InvalidDataException>(() => package.VerifyHashes());
-			Assert.That(ex.Message, Is.EqualTo("Only version 2 is supported."));
+			await Assert.That(() => package.VerifyHashes()).ThrowsExactly<InvalidDataException>()
+				.WithMessage("Only version 2 is supported.", StringComparison.Ordinal);
 		}
 
 		[Test]
-		public void VerifyFileChecksumsDoesNothingOnNullEntries()
+		public async Task VerifyFileChecksumsDoesNothingOnNullEntries()
 		{
 			using var package = new Package();
-			Assert.DoesNotThrow(() => package.VerifyFileChecksums());
+			await Assert.That(() => package.VerifyFileChecksums()).ThrowsNothing();
 		}
 
 		[Test]
-		public void VerifyFileChecksumsWithProgressReporter()
+		public async Task VerifyFileChecksumsWithProgressReporter()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "broken_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "broken_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
@@ -587,7 +585,7 @@ namespace ValvePak.Test
 			var progress = new SynchronousProgress();
 			package.VerifyFileChecksums(progress);
 
-			Assert.That(progress.Reports, Is.Not.Empty);
+			await Assert.That(progress.Reports).IsNotEmpty();
 		}
 
 		private sealed class SynchronousProgress : IProgress<string>
@@ -597,47 +595,48 @@ namespace ValvePak.Test
 		}
 
 		[Test]
-		public void DisposeCanBeCalledMultipleTimes()
+		public async Task DisposeCanBeCalledMultipleTimes()
 		{
 			var package = new Package();
 			package.Dispose();
-			Assert.DoesNotThrow(() => package.Dispose());
+			await Assert.That(() => package.Dispose()).ThrowsNothing();
 		}
 
 		[Test]
-		public void IsSignatureValidReturnsTrueWhenNoSignature()
+		public async Task IsSignatureValidReturnsTrueWhenNoSignature()
 		{
 			using var package = new Package();
-			Assert.That(package.IsSignatureValid(), Is.True);
+			await Assert.That(package.IsSignatureValid()).IsTrue();
 		}
 
 		[Test]
-		public void IsSignatureValidReturnsFalseAfterDispose()
+		public async Task IsSignatureValidReturnsFalseAfterDispose()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "platform_misc_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "platform_misc_dir.vpk");
 
 			var package = new Package();
 			package.Read(path);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.Signature, Is.Not.Null);
-				Assert.That(package.PublicKey, Is.Not.Null);
+				await Assert.That(package.Signature).IsNotNull();
+				await Assert.That(package.PublicKey).IsNotNull();
 			}
 
 			package.Dispose();
 
-			Assert.That(package.IsSignatureValid(), Is.False);
+			await Assert.That(package.IsSignatureValid()).IsFalse();
 		}
 
-		private static void TestVPKExtraction(string path)
+		private static async Task TestVPKExtraction(string path)
 		{
 			using var package = new Package();
 			package.Read(path);
 
-			Assert.That(package.Entries, Has.Count.EqualTo(2));
-			Assert.That(package.Entries.Keys, Does.Contain("jpg"));
-			Assert.That(package.Entries.Keys, Does.Contain("proto"));
+			await Assert.That(package.Entries).IsNotNull();
+			await Assert.That(package.Entries).Count().IsEqualTo(2);
+			await Assert.That(package.Entries.Keys).Contains("jpg");
+			await Assert.That(package.Entries.Keys).Contains("proto");
 
 			var flatEntries = new Dictionary<string, PackageEntry>();
 			var data = new Dictionary<string, string>();
@@ -646,7 +645,7 @@ namespace ValvePak.Test
 			{
 				foreach (var b in a.Value)
 				{
-					Assert.That(b.TypeName, Is.EqualTo(a.Key));
+					await Assert.That(b.TypeName).IsEqualTo(a.Key);
 
 					flatEntries.Add(b.FileName, b);
 
@@ -656,19 +655,19 @@ namespace ValvePak.Test
 				}
 			}
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(data, Has.Count.EqualTo(3));
-				Assert.That(data["kitten.jpg"], Is.EqualTo("1C03B452FEE5274B0BC1FA1A866EE6C8FA0D43AA464C6BCFB3AB531F6E813081"));
-				Assert.That(data["steammessages_base.proto"], Is.EqualTo("FCC96AE59EE6BB9EEC4E16A50C928EFD3FB16E1CCA49E38BD2FA8391AB7936BE"));
-				Assert.That(data["steammessages_clientserver.proto"], Is.EqualTo("1F90C38527D0853B4713942668F2DC83F433DBE919C002825A4526138A200428"));
+				await Assert.That(data).Count().IsEqualTo(3);
+				await Assert.That(data["kitten.jpg"]).IsEqualTo("1C03B452FEE5274B0BC1FA1A866EE6C8FA0D43AA464C6BCFB3AB531F6E813081");
+				await Assert.That(data["steammessages_base.proto"]).IsEqualTo("FCC96AE59EE6BB9EEC4E16A50C928EFD3FB16E1CCA49E38BD2FA8391AB7936BE");
+				await Assert.That(data["steammessages_clientserver.proto"]).IsEqualTo("1F90C38527D0853B4713942668F2DC83F433DBE919C002825A4526138A200428");
 			}
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(flatEntries["kitten"].TotalLength, Is.EqualTo(16361));
-				Assert.That(flatEntries["steammessages_base"].TotalLength, Is.EqualTo(2563));
-				Assert.That(flatEntries["steammessages_clientserver"].TotalLength, Is.EqualTo(39177));
+				await Assert.That(flatEntries["kitten"].TotalLength).IsEqualTo(16361u);
+				await Assert.That(flatEntries["steammessages_base"].TotalLength).IsEqualTo(2563u);
+				await Assert.That(flatEntries["steammessages_clientserver"].TotalLength).IsEqualTo(39177u);
 			}
 		}
 	}

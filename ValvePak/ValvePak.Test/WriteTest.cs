@@ -1,23 +1,23 @@
 using System;
 using System.IO;
 using System.Text;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using TUnit.Assertions.Enums;
 
 namespace ValvePak.Test
 {
-	[TestFixture]
 	internal sealed class WriteTest
 	{
 		[Test]
-		public void CreateNewPackage()
+		public async Task CreateNewPackage()
 		{
-			var oldPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var oldPath = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 
 			using var packageOld = new Package();
 			packageOld.Read(oldPath);
 
 			var fileEntry = packageOld.FindEntry("kitten.jpg");
-			Assert.That(fileEntry, Is.Not.Null);
+			await Assert.That(fileEntry).IsNotNull();
 			packageOld.ReadEntry(fileEntry, out var fileData);
 
 			var newName = "path/to/cool kitty.jpg";
@@ -41,26 +41,26 @@ namespace ValvePak.Test
 
 			var newEntry = packageWritten.FindEntry(newName);
 
-			Assert.That(newEntry, Is.Not.Null);
-			using (Assert.EnterMultipleScope())
+			await Assert.That(newEntry).IsNotNull();
+			using (Assert.Multiple())
 			{
-				Assert.That(newEntry.CRC32, Is.EqualTo(0x9C800116));
-				Assert.That(newEntry.ArchiveIndex, Is.EqualTo(0x7FFF));
-				Assert.That(newEntry.DirectoryName, Is.EqualTo("path/to"));
-				Assert.That(newEntry.TypeName, Is.EqualTo("jpg"));
-				Assert.That(newEntry.FileName, Is.EqualTo("cool kitty"));
+				await Assert.That(newEntry.CRC32).IsEqualTo(0x9C800116u);
+				await Assert.That(newEntry.ArchiveIndex).IsEqualTo((ushort)0x7FFF);
+				await Assert.That(newEntry.DirectoryName).IsEqualTo("path/to");
+				await Assert.That(newEntry.TypeName).IsEqualTo("jpg");
+				await Assert.That(newEntry.FileName).IsEqualTo("cool kitty");
 			}
 
 			packageWritten.ReadEntry(newEntry, out var newFileData);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(newFileData, Is.EqualTo(fileData));
-				Assert.That(packageWritten.FindEntry("valvepak")!.CRC32, Is.EqualTo(0xF14F273C));
+				await Assert.That(newFileData).IsEquivalentTo(fileData, CollectionOrdering.Matching);
+				await Assert.That(packageWritten.FindEntry("valvepak")!.CRC32).IsEqualTo(0xF14F273Cu);
 			}
 		}
 
 		[Test]
-		public void WriteManyFiles()
+		public async Task WriteManyFiles()
 		{
 			using var output = new MemoryStream();
 			using var packageNew = new Package();
@@ -80,11 +80,11 @@ namespace ValvePak.Test
 			packageWritten.Read(output);
 			packageWritten.VerifyHashes();
 
-			Assert.That(packageWritten.Entries!["txt"], Has.Count.EqualTo(1000));
+			await Assert.That(packageWritten.Entries!["txt"]).Count().IsEqualTo(1000);
 		}
 
 		[Test]
-		public void AddAndRemoveFiles()
+		public async Task AddAndRemoveFiles()
 		{
 			using var package = new Package();
 			package.AddFile("test1.txt", []);
@@ -92,126 +92,126 @@ namespace ValvePak.Test
 			package.AddFile("test3.txt", []);
 			package.AddFile("test4.txt", []);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(package.Entries!.ContainsKey("txt"), Is.True);
-				Assert.That(package.Entries["txt"], Has.Count.EqualTo(4));
-				Assert.That(package.RemoveFile(package.FindEntry("test2.txt")!), Is.True);
-				Assert.That(package.FindEntry("test2.txt"), Is.Null);
-				Assert.That(package.FindEntry("test1.txt"), Is.Not.Null);
-				Assert.That(package.RemoveFile(new PackageEntry
+				await Assert.That(package.Entries!.ContainsKey("txt")).IsTrue();
+				await Assert.That(package.Entries["txt"]).Count().IsEqualTo(4);
+				await Assert.That(package.RemoveFile(package.FindEntry("test2.txt")!)).IsTrue();
+				await Assert.That(package.FindEntry("test2.txt")).IsNull();
+				await Assert.That(package.FindEntry("test1.txt")).IsNotNull();
+				await Assert.That(package.RemoveFile(new PackageEntry
 				{
 					FileName = "test5",
 					TypeName = "txt",
 					DirectoryName = " ",
-				}), Is.False);
-				Assert.That(package.Entries["txt"], Has.Count.EqualTo(3));
-				Assert.That(package.RemoveFile(package.FindEntry("test4.txt")!), Is.True);
-				Assert.That(package.RemoveFile(package.FindEntry("test3.txt")!), Is.True);
-				Assert.That(package.RemoveFile(package.FindEntry("test1.txt")!), Is.True);
-				Assert.That(package.Entries, Is.Empty);
+				})).IsFalse();
+				await Assert.That(package.Entries["txt"]).Count().IsEqualTo(3);
+				await Assert.That(package.RemoveFile(package.FindEntry("test4.txt")!)).IsTrue();
+				await Assert.That(package.RemoveFile(package.FindEntry("test3.txt")!)).IsTrue();
+				await Assert.That(package.RemoveFile(package.FindEntry("test1.txt")!)).IsTrue();
+				await Assert.That(package.Entries).IsEmpty();
 			}
 		}
 
 		[Test]
-		public void SetsSpaces()
+		public async Task SetsSpaces()
 		{
 			using var package = new Package();
 			var file = package.AddFile("", []);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file.TypeName, Is.EqualTo(" "));
-				Assert.That(file.DirectoryName, Is.EqualTo(" "));
-				Assert.That(file.FileName, Is.EqualTo(""));
-				Assert.That(package.Entries!.ContainsKey(" "), Is.True);
-				Assert.That(package.Entries[" "][0], Is.EqualTo(file));
+				await Assert.That(file.TypeName).IsEqualTo(" ");
+				await Assert.That(file.DirectoryName).IsEqualTo(" ");
+				await Assert.That(file.FileName).IsEqualTo("");
+				await Assert.That(package.Entries!.ContainsKey(" ")).IsTrue();
+				await Assert.That(package.Entries[" "][0]).IsEqualTo(file);
 			}
 
 			var file2 = package.AddFile("hello", []);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file2.TypeName, Is.EqualTo(" "));
-				Assert.That(file2.DirectoryName, Is.EqualTo(" "));
-				Assert.That(file2.FileName, Is.EqualTo("hello"));
+				await Assert.That(file2.TypeName).IsEqualTo(" ");
+				await Assert.That(file2.DirectoryName).IsEqualTo(" ");
+				await Assert.That(file2.FileName).IsEqualTo("hello");
 			}
 
 			var file3 = package.AddFile("hello.txt", []);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file3.TypeName, Is.EqualTo("txt"));
-				Assert.That(file3.DirectoryName, Is.EqualTo(" "));
-				Assert.That(file3.FileName, Is.EqualTo("hello"));
+				await Assert.That(file3.TypeName).IsEqualTo("txt");
+				await Assert.That(file3.DirectoryName).IsEqualTo(" ");
+				await Assert.That(file3.FileName).IsEqualTo("hello");
 			}
 
 			var file4 = package.AddFile("folder/hello", []);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file4.TypeName, Is.EqualTo(" "));
-				Assert.That(file4.DirectoryName, Is.EqualTo("folder"));
-				Assert.That(file4.FileName, Is.EqualTo("hello"));
+				await Assert.That(file4.TypeName).IsEqualTo(" ");
+				await Assert.That(file4.DirectoryName).IsEqualTo("folder");
+				await Assert.That(file4.FileName).IsEqualTo("hello");
 			}
 		}
 
 		[Test]
-		public void NormalizesSlashes()
+		public async Task NormalizesSlashes()
 		{
 			using var package = new Package();
 			var file = package.AddFile("a/b\\c\\d.txt", []);
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(file.TypeName, Is.EqualTo("txt"));
-				Assert.That(file.DirectoryName, Is.EqualTo("a/b/c"));
-				Assert.That(file.FileName, Is.EqualTo("d"));
+				await Assert.That(file.TypeName).IsEqualTo("txt");
+				await Assert.That(file.DirectoryName).IsEqualTo("a/b/c");
+				await Assert.That(file.FileName).IsEqualTo("d");
 			}
 		}
 
 		[Test]
-		public void WriteThrowsWhenIsDirVPK()
+		public async Task WriteThrowsWhenIsDirVPK()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			using var output = new MemoryStream();
-			var ex = Assert.Throws<InvalidOperationException>(() => package.Write(output));
-			Assert.That(ex.Message, Is.EqualTo("This package was opened from a _dir.vpk, writing back is currently unsupported."));
+			await Assert.That(() => package.Write(output)).ThrowsExactly<InvalidOperationException>()
+				.WithMessage("This package was opened from a _dir.vpk, writing back is currently unsupported.", StringComparison.Ordinal);
 		}
 
 		[Test]
-		public void WriteThrowsOnNonSeekableStream()
+		public async Task WriteThrowsOnNonSeekableStream()
 		{
 			using var package = new Package();
 			package.AddFile("test.txt", Encoding.UTF8.GetBytes("hello"));
 
 			using var nonSeekable = new NonSeekableStream();
-			var ex = Assert.Throws<InvalidOperationException>(() => package.Write(nonSeekable));
-			Assert.That(ex.Message, Is.EqualTo("Stream must be seekable and readable."));
+			await Assert.That(() => package.Write(nonSeekable)).ThrowsExactly<InvalidOperationException>()
+				.WithMessage("Stream must be seekable and readable.", StringComparison.Ordinal);
 		}
 
 		[Test]
-		public void AddFileThrowsOnNullFilePath()
+		public async Task AddFileThrowsOnNullFilePath()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.AddFile(null!, []));
+			await Assert.That(() => package.AddFile(null!, [])).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void AddFileThrowsOnNullData()
+		public async Task AddFileThrowsOnNullData()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.AddFile("test.txt", null!));
+			await Assert.That(() => package.AddFile("test.txt", null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void RemoveFileThrowsOnNullEntry()
+		public async Task RemoveFileThrowsOnNullEntry()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.RemoveFile(null!));
+			await Assert.That(() => package.RemoveFile(null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void RemoveFileReturnsFalseOnEmptyPackage()
+		public async Task RemoveFileReturnsFalseOnEmptyPackage()
 		{
 			using var package = new Package();
 			var result = package.RemoveFile(new PackageEntry
@@ -220,11 +220,11 @@ namespace ValvePak.Test
 				TypeName = "txt",
 				DirectoryName = " ",
 			});
-			Assert.That(result, Is.False);
+			await Assert.That(result).IsFalse();
 		}
 
 		[Test]
-		public void WriteAndVerifyRoundTrip()
+		public async Task WriteAndVerifyRoundTrip()
 		{
 			using var output = new MemoryStream();
 
@@ -241,26 +241,26 @@ namespace ValvePak.Test
 			readBack.SetFileName("test.vpk");
 			readBack.Read(output);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.Version, Is.EqualTo(2));
-				Assert.That(readBack.HeaderSize, Is.GreaterThan(0u));
-				Assert.That(readBack.TreeSize, Is.GreaterThan(0u));
-				Assert.That(readBack.FileDataSectionSize, Is.GreaterThan(0u));
-				Assert.That(readBack.OtherMD5SectionSize, Is.EqualTo(48u));
+				await Assert.That(readBack.Version).IsEqualTo(2u);
+				await Assert.That(readBack.HeaderSize).IsGreaterThan(0u);
+				await Assert.That(readBack.TreeSize).IsGreaterThan(0u);
+				await Assert.That(readBack.FileDataSectionSize).IsGreaterThan(0u);
+				await Assert.That(readBack.OtherMD5SectionSize).IsEqualTo(48u);
 			}
 
-			Assert.DoesNotThrow(() => readBack.VerifyHashes());
+			await Assert.That(() => readBack.VerifyHashes()).ThrowsNothing();
 		}
 
 		[Test]
-		public void WriteVersion1Package()
+		public async Task WriteVersion1Package()
 		{
 			using var output = new MemoryStream();
 
 			using (var package = new Package())
 			{
-				Assert.That(package.Version, Is.EqualTo(2));
+				await Assert.That(package.Version).IsEqualTo(2u);
 
 				package.Version = 1;
 				package.AddFile("hello.txt", Encoding.UTF8.GetBytes("world"));
@@ -274,25 +274,25 @@ namespace ValvePak.Test
 			readBack.SetFileName("test.vpk");
 			readBack.Read(output);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.Version, Is.EqualTo(1));
-				Assert.That(readBack.HeaderSize, Is.EqualTo(12u));
-				Assert.That(readBack.TreeSize, Is.GreaterThan(0u));
-				Assert.That(readBack.OtherMD5SectionSize, Is.Zero);
+				await Assert.That(readBack.Version).IsEqualTo(1u);
+				await Assert.That(readBack.HeaderSize).IsEqualTo(12u);
+				await Assert.That(readBack.TreeSize).IsGreaterThan(0u);
+				await Assert.That(readBack.OtherMD5SectionSize).IsZero();
 			}
 
 			var entry = readBack.FindEntry("hello.txt");
-			Assert.That(entry, Is.Not.Null);
+			await Assert.That(entry).IsNotNull();
 
 			readBack.ReadEntry(entry, out var data);
-			Assert.That(Encoding.UTF8.GetString(data), Is.EqualTo("world"));
+			await Assert.That(Encoding.UTF8.GetString(data)).IsEqualTo("world");
 
-			Assert.DoesNotThrow(() => readBack.VerifyFileChecksums());
+			await Assert.That(() => readBack.VerifyFileChecksums()).ThrowsNothing();
 		}
 
 		[Test]
-		public void WritePreservesVersionOfReadPackage()
+		public async Task WritePreservesVersionOfReadPackage()
 		{
 			using var output = new MemoryStream();
 
@@ -318,25 +318,25 @@ namespace ValvePak.Test
 			readBack2.SetFileName("test.vpk");
 			readBack2.Read(output2);
 
-			Assert.That(readBack2.Version, Is.EqualTo(1));
+			await Assert.That(readBack2.Version).IsEqualTo(1u);
 
 			var entry = readBack2.FindEntry("hello.txt");
-			Assert.That(entry, Is.Not.Null);
+			await Assert.That(entry).IsNotNull();
 
 			readBack2.ReadEntry(entry, out var data);
-			Assert.That(Encoding.UTF8.GetString(data), Is.EqualTo("world"));
+			await Assert.That(Encoding.UTF8.GetString(data)).IsEqualTo("world");
 		}
 
 		[Test]
-		public void SetVersionThrowsOnUnsupportedVersion()
+		public async Task SetVersionThrowsOnUnsupportedVersion()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentOutOfRangeException>(() => package.Version = 0);
-			Assert.Throws<ArgumentOutOfRangeException>(() => package.Version = 3);
+			await Assert.That(() => package.Version = 0).ThrowsExactly<ArgumentOutOfRangeException>();
+			await Assert.That(() => package.Version = 3).ThrowsExactly<ArgumentOutOfRangeException>();
 		}
 
 		[Test]
-		public void WriteToFile()
+		public async Task WriteToFile()
 		{
 			var tempFile = Path.GetTempFileName();
 
@@ -353,10 +353,10 @@ namespace ValvePak.Test
 				readBack.VerifyHashes();
 
 				var entry = readBack.FindEntry("test.txt");
-				Assert.That(entry, Is.Not.Null);
+				await Assert.That(entry).IsNotNull();
 
 				readBack.ReadEntry(entry, out var data);
-				Assert.That(Encoding.UTF8.GetString(data), Is.EqualTo("hello from file"));
+				await Assert.That(Encoding.UTF8.GetString(data)).IsEqualTo("hello from file");
 			}
 			finally
 			{
@@ -365,7 +365,7 @@ namespace ValvePak.Test
 		}
 
 		[Test]
-		public void RemoveFileReturnsFalseForWrongType()
+		public async Task RemoveFileReturnsFalseForWrongType()
 		{
 			using var package = new Package();
 			package.AddFile("test.txt", []);
@@ -377,7 +377,7 @@ namespace ValvePak.Test
 				DirectoryName = " ",
 			});
 
-			Assert.That(result, Is.False);
+			await Assert.That(result).IsFalse();
 		}
 
 		private sealed class NonSeekableStream : Stream

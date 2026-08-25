@@ -2,54 +2,53 @@ using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Security.Cryptography;
-using NUnit.Framework;
+using System.Threading.Tasks;
 
 namespace ValvePak.Test
 {
-	[TestFixture]
 	internal sealed class MemoryMappedTest
 	{
-		private static void VerifyKitten(Stream stream) => Assert.That(Convert.ToHexString(SHA256.HashData(stream)), Is.EqualTo("1C03B452FEE5274B0BC1FA1A866EE6C8FA0D43AA464C6BCFB3AB531F6E813081"));
-		private static void VerifyProto(Stream stream) => Assert.That(Convert.ToHexString(SHA256.HashData(stream)), Is.EqualTo("FCC96AE59EE6BB9EEC4E16A50C928EFD3FB16E1CCA49E38BD2FA8391AB7936BE"));
+		private static async Task VerifyKitten(Stream stream) => await Assert.That(Convert.ToHexString(await SHA256.HashDataAsync(stream))).IsEqualTo("1C03B452FEE5274B0BC1FA1A866EE6C8FA0D43AA464C6BCFB3AB531F6E813081");
+		private static async Task VerifyProto(Stream stream) => await Assert.That(Convert.ToHexString(await SHA256.HashDataAsync(stream))).IsEqualTo("FCC96AE59EE6BB9EEC4E16A50C928EFD3FB16E1CCA49E38BD2FA8391AB7936BE");
 
 		[Test]
-		public void ReturnsCorrectStreamsForSplitPackages()
+		public async Task ReturnsCorrectStreamsForSplitPackages()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_dir.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_dir.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			using var stream = package.GetMemoryMappedStreamIfPossible(package.FindEntry("kitten.jpg")!);
-			Assert.That(stream, Is.InstanceOf<MemoryMappedViewStream>());
-			VerifyKitten(stream);
+			await Assert.That(stream).IsAssignableTo<MemoryMappedViewStream>();
+			await VerifyKitten(stream);
 
 			using var stream2 = package.GetMemoryMappedStreamIfPossible(package.FindEntry("steammessages_base.proto")!);
-			Assert.That(stream2, Is.InstanceOf<MemoryStream>()); // This file is less than 4kb
-			VerifyProto(stream2);
+			await Assert.That(stream2).IsAssignableTo<MemoryStream>(); // This file is less than 4kb
+			await VerifyProto(stream2);
 		}
 
 		[Test]
-		public void ReturnsCorrectStreams()
+		public async Task ReturnsCorrectStreams()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			using var stream = package.GetMemoryMappedStreamIfPossible(package.FindEntry("kitten.jpg")!);
-			Assert.That(stream, Is.InstanceOf<MemoryMappedViewStream>());
-			VerifyKitten(stream);
+			await Assert.That(stream).IsAssignableTo<MemoryMappedViewStream>();
+			await VerifyKitten(stream);
 
 			using var stream2 = package.GetMemoryMappedStreamIfPossible(package.FindEntry("steammessages_base.proto")!);
-			Assert.That(stream2, Is.InstanceOf<MemoryStream>());
-			VerifyProto(stream2);
+			await Assert.That(stream2).IsAssignableTo<MemoryStream>();
+			await VerifyProto(stream2);
 		}
 
 		[Test]
-		public void ReturnsCorrectStreamsWhenUsingFileStream()
+		public async Task ReturnsCorrectStreamsWhenUsingFileStream()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
 			using var fileStream = File.OpenRead(path);
 
 			using var package = new Package();
@@ -57,54 +56,54 @@ namespace ValvePak.Test
 			package.Read(fileStream);
 
 			using var stream = package.GetMemoryMappedStreamIfPossible(package.FindEntry("kitten.jpg")!);
-			Assert.That(stream, Is.InstanceOf<MemoryMappedViewStream>());
-			VerifyKitten(stream);
+			await Assert.That(stream).IsAssignableTo<MemoryMappedViewStream>();
+			await VerifyKitten(stream);
 
 			using var stream2 = package.GetMemoryMappedStreamIfPossible(package.FindEntry("steammessages_base.proto")!);
-			Assert.That(stream2, Is.InstanceOf<MemoryStream>());
-			VerifyProto(stream2);
+			await Assert.That(stream2).IsAssignableTo<MemoryStream>();
+			await VerifyProto(stream2);
 		}
 
 		[Test]
-		public void ReturnsCorrectStreamsWhenUsingMemoryStream()
+		public async Task ReturnsCorrectStreamsWhenUsingMemoryStream()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "test_single.vpk");
-			using var memoryStream = new MemoryStream(File.ReadAllBytes(path));
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "test_single.vpk");
+			using var memoryStream = new MemoryStream(await File.ReadAllBytesAsync(path));
 
 			using var package = new Package();
 			package.SetFileName("surely non existing file");
 			package.Read(memoryStream);
 
 			using var stream = package.GetMemoryMappedStreamIfPossible(package.FindEntry("kitten.jpg")!);
-			Assert.That(stream, Is.InstanceOf<MemoryStream>());
-			VerifyKitten(stream);
+			await Assert.That(stream).IsAssignableTo<MemoryStream>();
+			await VerifyKitten(stream);
 
 			using var stream2 = package.GetMemoryMappedStreamIfPossible(package.FindEntry("steammessages_base.proto")!);
-			Assert.That(stream2, Is.InstanceOf<MemoryStream>());
-			VerifyProto(stream2);
+			await Assert.That(stream2).IsAssignableTo<MemoryStream>();
+			await VerifyProto(stream2);
 		}
 
 		[Test]
-		public void GetMemoryMappedStreamIfPossibleThrowsOnNullEntry()
+		public async Task GetMemoryMappedStreamIfPossibleThrowsOnNullEntry()
 		{
 			using var package = new Package();
-			Assert.Throws<ArgumentNullException>(() => package.GetMemoryMappedStreamIfPossible(null!));
+			await Assert.That(() => package.GetMemoryMappedStreamIfPossible(null!)).ThrowsExactly<ArgumentNullException>();
 		}
 
 		[Test]
-		public void GetMemoryMappedStreamIfPossibleWithPreloadedBytesReturnsMemoryStream()
+		public async Task GetMemoryMappedStreamIfPossibleWithPreloadedBytesReturnsMemoryStream()
 		{
-			var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "preload.vpk");
+			var path = Path.Combine(AppContext.BaseDirectory, "Files", "preload.vpk");
 
 			using var package = new Package();
 			package.Read(path);
 
 			var entry = package.FindEntry("lorem.txt");
-			Assert.That(entry, Is.Not.Null);
-			Assert.That(entry.SmallData, Has.Length.GreaterThan(0));
+			await Assert.That(entry).IsNotNull();
+			await Assert.That(entry.SmallData).IsNotEmpty();
 
 			using var stream = package.GetMemoryMappedStreamIfPossible(entry);
-			Assert.That(stream, Is.InstanceOf<MemoryStream>());
+			await Assert.That(stream).IsAssignableTo<MemoryStream>();
 		}
 	}
 }

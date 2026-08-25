@@ -29,7 +29,7 @@ jobs:
       run: dotnet build -c Release
 
     - name: Test
-      run: dotnet test -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:CoverletOutput='./lcov.info' /p:Include="[ValvePak*]*"
+      run: dotnet test -c Release --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
     - name: Create nupkg
       run: dotnet pack --configuration Release
@@ -45,7 +45,7 @@ jobs:
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./ValvePak/ValvePak.Test/lcov.info
+        files: ./TestResults/coverage.cobertura.xml
         fail_ci_if_error: true
         verbose: true
 

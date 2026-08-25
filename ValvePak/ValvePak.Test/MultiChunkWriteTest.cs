@@ -2,32 +2,32 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using TUnit.Assertions.Enums;
 
 namespace ValvePak.Test
 {
-	[TestFixture]
 	internal sealed class MultiChunkWriteTest
 	{
 		private const int FractionSize = 1024 * 1024;
 
-		private string TempDirectory;
+		private string TempDirectory = string.Empty;
 
-		[SetUp]
+		[Before(HookType.Test)]
 		public void SetUp()
 		{
 			TempDirectory = Path.Combine(Path.GetTempPath(), "ValvePakTest_" + Path.GetRandomFileName());
 			Directory.CreateDirectory(TempDirectory);
 		}
 
-		[TearDown]
+		[After(HookType.Test)]
 		public void TearDown()
 		{
 			Directory.Delete(TempDirectory, recursive: true);
 		}
 
 		[Test]
-		public void WriteMultiChunkPackage()
+		public async Task WriteMultiChunkPackage()
 		{
 			var dirPath = TempPath("test_dir.vpk");
 
@@ -40,52 +40,52 @@ namespace ValvePak.Test
 					var entry = package.AddFile($"files/chunked_{i}.bin", CreateTestData(400, (byte)i), multiChunk: true);
 
 					// 400 byte files with a 1024 chunk size, so three files per chunk
-					Assert.That(entry.ArchiveIndex, Is.EqualTo((ushort)(i / 3)));
+					await Assert.That(entry.ArchiveIndex).IsEqualTo((ushort)(i / 3));
 				}
 
 				package.AddFile("in_dir.txt", Encoding.UTF8.GetBytes("this file is in the directory file"));
 
 				// Files with no data must stay in the directory file
 				var emptyEntry = package.AddFile("empty.bin", [], multiChunk: true);
-				Assert.That(emptyEntry.ArchiveIndex, Is.EqualTo(0x7FFF));
+				await Assert.That(emptyEntry.ArchiveIndex).IsEqualTo((ushort)0x7FFF);
 
 				package.Write(dirPath);
 			}
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(new FileInfo(TempPath("test_000.vpk")).Length, Is.EqualTo(1200));
-				Assert.That(new FileInfo(TempPath("test_001.vpk")).Length, Is.EqualTo(1200));
-				Assert.That(new FileInfo(TempPath("test_002.vpk")).Length, Is.EqualTo(1200));
-				Assert.That(new FileInfo(TempPath("test_003.vpk")).Length, Is.EqualTo(400));
-				Assert.That(File.Exists(TempPath("test_004.vpk")), Is.False);
+				await Assert.That(new FileInfo(TempPath("test_000.vpk")).Length).IsEqualTo(1200L);
+				await Assert.That(new FileInfo(TempPath("test_001.vpk")).Length).IsEqualTo(1200L);
+				await Assert.That(new FileInfo(TempPath("test_002.vpk")).Length).IsEqualTo(1200L);
+				await Assert.That(new FileInfo(TempPath("test_003.vpk")).Length).IsEqualTo(400L);
+				await Assert.That(File.Exists(TempPath("test_004.vpk"))).IsFalse();
 			}
 
 			using var readBack = new Package();
 			readBack.Read(dirPath);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.IsDirVPK, Is.True);
-				Assert.That(readBack.ArchiveMD5SectionSize, Is.EqualTo(4 * ChunkHashFraction.SectionEntrySize));
-				Assert.That(readBack.AccessPackFileHashes, Has.Count.EqualTo(4));
+				await Assert.That(readBack.IsDirVPK).IsTrue();
+				await Assert.That(readBack.ArchiveMD5SectionSize).IsEqualTo(4u * ChunkHashFraction.SectionEntrySize);
+				await Assert.That(readBack.AccessPackFileHashes).Count().IsEqualTo(4);
 			}
 
-			AssertPackageVerifies(readBack);
+			await AssertPackageVerifies(readBack);
 
 			for (var i = 0; i < 10; i++)
 			{
-				var entry = AssertEntryData(readBack, $"files/chunked_{i}.bin", 400, (byte)i);
-				Assert.That(entry.ArchiveIndex, Is.EqualTo((ushort)(i / 3)));
+				var entry = await AssertEntryData(readBack, $"files/chunked_{i}.bin", 400, (byte)i);
+				await Assert.That(entry.ArchiveIndex).IsEqualTo((ushort)(i / 3));
 			}
 
 			var dirEntry = readBack.FindEntry("in_dir.txt");
-			Assert.That(dirEntry, Is.Not.Null);
-			Assert.That(dirEntry.ArchiveIndex, Is.EqualTo(0x7FFF));
+			await Assert.That(dirEntry).IsNotNull();
+			await Assert.That(dirEntry.ArchiveIndex).IsEqualTo((ushort)0x7FFF);
 		}
 
 		[Test]
-		public void WritesChunkHashFractions()
+		public async Task WritesChunkHashFractions()
 		{
 			var dirPath = TempPath("fractions_dir.vpk");
 			var fileA = CreateTestData(2 * FractionSize, 1); // exactly two fractions
@@ -103,34 +103,34 @@ namespace ValvePak.Test
 			readBack.Read(dirPath);
 
 			// Chunk 0 is an exact multiple of the 1 MiB fraction size, which produces a trailing zero sized fraction
-			Assert.That(readBack.AccessPackFileHashes, Has.Count.EqualTo(4));
+			await Assert.That(readBack.AccessPackFileHashes).Count().IsEqualTo(4);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.AccessPackFileHashes[0].ArchiveIndex, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[0].Offset, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[0].Length, Is.EqualTo(FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[0].HashType, Is.EqualTo(EHashType.MD5));
-				Assert.That(readBack.AccessPackFileHashes[0].Checksum, Is.EqualTo(MD5.HashData(fileA.AsSpan(0, FractionSize))));
+				await Assert.That(readBack.AccessPackFileHashes[0].ArchiveIndex).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[0].Offset).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[0].Length).IsEqualTo((uint)FractionSize);
+				await Assert.That(readBack.AccessPackFileHashes[0].HashType).IsEqualTo(EHashType.MD5);
+				await Assert.That(readBack.AccessPackFileHashes[0].Checksum).IsEquivalentTo(MD5.HashData(fileA.AsSpan(0, FractionSize)), CollectionOrdering.Matching);
 
-				Assert.That(readBack.AccessPackFileHashes[1].ArchiveIndex, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[1].Offset, Is.EqualTo(FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[1].Length, Is.EqualTo(FractionSize));
+				await Assert.That(readBack.AccessPackFileHashes[1].ArchiveIndex).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[1].Offset).IsEqualTo((uint)FractionSize);
+				await Assert.That(readBack.AccessPackFileHashes[1].Length).IsEqualTo((uint)FractionSize);
 
-				Assert.That(readBack.AccessPackFileHashes[2].ArchiveIndex, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[2].Offset, Is.EqualTo(2 * FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[2].Length, Is.Zero);
+				await Assert.That(readBack.AccessPackFileHashes[2].ArchiveIndex).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[2].Offset).IsEqualTo((uint)(2 * FractionSize));
+				await Assert.That(readBack.AccessPackFileHashes[2].Length).IsZero();
 
-				Assert.That(readBack.AccessPackFileHashes[3].ArchiveIndex, Is.EqualTo(1));
-				Assert.That(readBack.AccessPackFileHashes[3].Offset, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[3].Length, Is.EqualTo(300_000));
+				await Assert.That(readBack.AccessPackFileHashes[3].ArchiveIndex).IsEqualTo((ushort)1);
+				await Assert.That(readBack.AccessPackFileHashes[3].Offset).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[3].Length).IsEqualTo(300_000u);
 			}
 
-			AssertPackageVerifies(readBack);
+			await AssertPackageVerifies(readBack);
 		}
 
 		[Test]
-		public void HashesFractionSpanningMultipleFiles()
+		public async Task HashesFractionSpanningMultipleFiles()
 		{
 			var dirPath = TempPath("spanning_dir.vpk");
 			var fileA = CreateTestData(600_000, 1);
@@ -147,28 +147,28 @@ namespace ValvePak.Test
 			using var readBack = new Package();
 			readBack.Read(dirPath);
 
-			Assert.That(readBack.AccessPackFileHashes, Has.Count.EqualTo(2));
+			await Assert.That(readBack.AccessPackFileHashes).Count().IsEqualTo(2);
 
 			var fraction0 = new byte[FractionSize];
 			fileA.CopyTo(fraction0, 0);
 			fileB.AsSpan(0, FractionSize - fileA.Length).CopyTo(fraction0.AsSpan(fileA.Length));
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.AccessPackFileHashes[0].Offset, Is.Zero);
-				Assert.That(readBack.AccessPackFileHashes[0].Length, Is.EqualTo(FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[0].Checksum, Is.EqualTo(MD5.HashData(fraction0)));
+				await Assert.That(readBack.AccessPackFileHashes[0].Offset).IsZero();
+				await Assert.That(readBack.AccessPackFileHashes[0].Length).IsEqualTo((uint)FractionSize);
+				await Assert.That(readBack.AccessPackFileHashes[0].Checksum).IsEquivalentTo(MD5.HashData(fraction0), CollectionOrdering.Matching);
 
-				Assert.That(readBack.AccessPackFileHashes[1].Offset, Is.EqualTo(FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[1].Length, Is.EqualTo(fileA.Length + fileB.Length - FractionSize));
-				Assert.That(readBack.AccessPackFileHashes[1].Checksum, Is.EqualTo(MD5.HashData(fileB.AsSpan(FractionSize - fileA.Length))));
+				await Assert.That(readBack.AccessPackFileHashes[1].Offset).IsEqualTo((uint)FractionSize);
+				await Assert.That(readBack.AccessPackFileHashes[1].Length).IsEqualTo((uint)(fileA.Length + fileB.Length - FractionSize));
+				await Assert.That(readBack.AccessPackFileHashes[1].Checksum).IsEquivalentTo(MD5.HashData(fileB.AsSpan(FractionSize - fileA.Length)), CollectionOrdering.Matching);
 			}
 
-			AssertPackageVerifies(readBack);
+			await AssertPackageVerifies(readBack);
 		}
 
 		[Test]
-		public void WritesChunkDataInterleavedByTreeOrder()
+		public async Task WritesChunkDataInterleavedByTreeOrder()
 		{
 			var dirPath = TempPath("interleaved_dir.vpk");
 
@@ -184,10 +184,10 @@ namespace ValvePak.Test
 					var entryA = package.AddFile($"a{i}.txt", CreateTestData(600, (byte)(i * 2)), multiChunk: true);
 					var entryB = package.AddFile($"b{i}.jpg", CreateTestData(600, (byte)((i * 2) + 1)), multiChunk: true);
 
-					using (Assert.EnterMultipleScope())
+					using (Assert.Multiple())
 					{
-						Assert.That(entryA.ArchiveIndex, Is.EqualTo(i));
-						Assert.That(entryB.ArchiveIndex, Is.EqualTo(i));
+						await Assert.That(entryA.ArchiveIndex).IsEqualTo((ushort)i);
+						await Assert.That(entryB.ArchiveIndex).IsEqualTo((ushort)i);
 					}
 				}
 
@@ -197,23 +197,23 @@ namespace ValvePak.Test
 			using var readBack = new Package();
 			readBack.Read(dirPath);
 
-			AssertPackageVerifies(readBack);
+			await AssertPackageVerifies(readBack);
 
 			for (var i = 0; i < 3; i++)
 			{
-				var entryA = AssertEntryData(readBack, $"a{i}.txt", 600, (byte)(i * 2));
-				var entryB = AssertEntryData(readBack, $"b{i}.jpg", 600, (byte)((i * 2) + 1));
+				var entryA = await AssertEntryData(readBack, $"a{i}.txt", 600, (byte)(i * 2));
+				var entryB = await AssertEntryData(readBack, $"b{i}.jpg", 600, (byte)((i * 2) + 1));
 
-				using (Assert.EnterMultipleScope())
+				using (Assert.Multiple())
 				{
-					Assert.That(entryA.ArchiveIndex, Is.EqualTo(i));
-					Assert.That(entryB.ArchiveIndex, Is.EqualTo(i));
+					await Assert.That(entryA.ArchiveIndex).IsEqualTo((ushort)i);
+					await Assert.That(entryB.ArchiveIndex).IsEqualTo((ushort)i);
 				}
 			}
 		}
 
 		[Test]
-		public void RemoveFileRewritesChunksAndHashes()
+		public async Task RemoveFileRewritesChunksAndHashes()
 		{
 			var dirPath = TempPath("removed_dir.vpk");
 
@@ -226,43 +226,43 @@ namespace ValvePak.Test
 					package.AddFile($"chunked_{i}.bin", CreateTestData(400, (byte)i), multiChunk: true);
 				}
 
-				using (Assert.EnterMultipleScope())
+				using (Assert.Multiple())
 				{
 					// Remove a file from the middle of chunk 0, and all files of chunk 1
-					Assert.That(package.RemoveFile(package.FindEntry("chunked_1.bin")!), Is.True);
-					Assert.That(package.RemoveFile(package.FindEntry("chunked_3.bin")!), Is.True);
-					Assert.That(package.RemoveFile(package.FindEntry("chunked_4.bin")!), Is.True);
-					Assert.That(package.RemoveFile(package.FindEntry("chunked_5.bin")!), Is.True);
+					await Assert.That(package.RemoveFile(package.FindEntry("chunked_1.bin")!)).IsTrue();
+					await Assert.That(package.RemoveFile(package.FindEntry("chunked_3.bin")!)).IsTrue();
+					await Assert.That(package.RemoveFile(package.FindEntry("chunked_4.bin")!)).IsTrue();
+					await Assert.That(package.RemoveFile(package.FindEntry("chunked_5.bin")!)).IsTrue();
 				}
 
 				package.Write(dirPath);
 			}
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(new FileInfo(TempPath("removed_000.vpk")).Length, Is.EqualTo(800));
-				Assert.That(File.Exists(TempPath("removed_001.vpk")), Is.False);
-				Assert.That(new FileInfo(TempPath("removed_002.vpk")).Length, Is.EqualTo(1200));
+				await Assert.That(new FileInfo(TempPath("removed_000.vpk")).Length).IsEqualTo(800L);
+				await Assert.That(File.Exists(TempPath("removed_001.vpk"))).IsFalse();
+				await Assert.That(new FileInfo(TempPath("removed_002.vpk")).Length).IsEqualTo(1200L);
 			}
 
 			using var readBack = new Package();
 			readBack.Read(dirPath);
 
 			// Hashes must cover the rewritten chunk layout, not the layout at the time the files were added
-			AssertPackageVerifies(readBack);
+			await AssertPackageVerifies(readBack);
 
-			Assert.That(readBack.AccessPackFileHashes, Has.Count.EqualTo(2));
+			await Assert.That(readBack.AccessPackFileHashes).Count().IsEqualTo(2);
 
 			foreach (var i in new[] { 0, 2, 6, 7, 8 })
 			{
-				AssertEntryData(readBack, $"chunked_{i}.bin", 400, (byte)i);
+				await AssertEntryData(readBack, $"chunked_{i}.bin", 400, (byte)i);
 			}
 
-			Assert.That(readBack.FindEntry("chunked_1.bin"), Is.Null);
+			await Assert.That(readBack.FindEntry("chunked_1.bin")).IsNull();
 		}
 
 		[Test]
-		public void AddFileThrowsWhenExceedingChunkLimit()
+		public async Task AddFileThrowsWhenExceedingChunkLimit()
 		{
 			using var package = new Package();
 			package.WriteChunkSize = 1;
@@ -275,14 +275,14 @@ namespace ValvePak.Test
 				entry = package.AddFile($"{i}.bin", [1], multiChunk: true);
 			}
 
-			Assert.That(entry!.ArchiveIndex, Is.EqualTo(0x7FFE));
+			await Assert.That(entry!.ArchiveIndex).IsEqualTo((ushort)0x7FFE);
 
-			var ex = Assert.Throws<InvalidOperationException>(() => package.AddFile("one too many.bin", [1], multiChunk: true));
-			Assert.That(ex.Message, Does.Contain("maximum amount of chunk files"));
+			await Assert.That(() => package.AddFile("one too many.bin", [1], multiChunk: true)).ThrowsExactly<InvalidOperationException>()
+				.WithMessageContaining("maximum amount of chunk files", StringComparison.Ordinal);
 		}
 
 		[Test]
-		public void WriteVersion1MultiChunkPackage()
+		public async Task WriteVersion1MultiChunkPackage()
 		{
 			var dirPath = TempPath("v1_dir.vpk");
 
@@ -299,48 +299,48 @@ namespace ValvePak.Test
 				package.Write(dirPath);
 			}
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(File.Exists(TempPath("v1_000.vpk")), Is.True);
-				Assert.That(File.Exists(TempPath("v1_001.vpk")), Is.True);
+				await Assert.That(File.Exists(TempPath("v1_000.vpk"))).IsTrue();
+				await Assert.That(File.Exists(TempPath("v1_001.vpk"))).IsTrue();
 			}
 
 			using var readBack = new Package();
 			readBack.Read(dirPath);
 
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.That(readBack.Version, Is.EqualTo(1));
-				Assert.That(readBack.ArchiveMD5SectionSize, Is.Zero);
+				await Assert.That(readBack.Version).IsEqualTo(1u);
+				await Assert.That(readBack.ArchiveMD5SectionSize).IsZero();
 			}
 
 			// Version 1 has no hashes to verify beyond the file checksums
-			Assert.DoesNotThrow(() => readBack.VerifyFileChecksums());
+			await Assert.That(() => readBack.VerifyFileChecksums()).ThrowsNothing();
 
 			for (var i = 0; i < 5; i++)
 			{
-				AssertEntryData(readBack, $"chunked_{i}.bin", 400, (byte)i);
+				await AssertEntryData(readBack, $"chunked_{i}.bin", 400, (byte)i);
 			}
 		}
 
 		[Test]
-		public void WriteToStreamThrowsWithChunkedFiles()
+		public async Task WriteToStreamThrowsWithChunkedFiles()
 		{
 			using var package = new Package();
 			package.AddFile("chunked.bin", CreateTestData(400, 0), multiChunk: true);
 
 			using var output = new MemoryStream();
-			var ex = Assert.Throws<InvalidOperationException>(() => package.Write(output));
-			Assert.That(ex.Message, Does.Contain("chunk files"));
+			await Assert.That(() => package.Write(output)).ThrowsExactly<InvalidOperationException>()
+				.WithMessageContaining("chunk files", StringComparison.Ordinal);
 		}
 
 		[Test]
-		public void WriteChunkSizeValidation()
+		public async Task WriteChunkSizeValidation()
 		{
 			using var package = new Package();
-			Assert.That(package.WriteChunkSize, Is.EqualTo(200 * 1024 * 1024));
-			Assert.Throws<ArgumentOutOfRangeException>(() => package.WriteChunkSize = 0);
-			Assert.Throws<ArgumentOutOfRangeException>(() => package.WriteChunkSize = -1);
+			await Assert.That(package.WriteChunkSize).IsEqualTo(200 * 1024 * 1024);
+			await Assert.That(() => package.WriteChunkSize = 0).ThrowsExactly<ArgumentOutOfRangeException>();
+			await Assert.That(() => package.WriteChunkSize = -1).ThrowsExactly<ArgumentOutOfRangeException>();
 		}
 
 		private string TempPath(string fileName)
@@ -348,23 +348,23 @@ namespace ValvePak.Test
 			return Path.Combine(TempDirectory, fileName);
 		}
 
-		private static void AssertPackageVerifies(Package package)
+		private static async Task AssertPackageVerifies(Package package)
 		{
-			using (Assert.EnterMultipleScope())
+			using (Assert.Multiple())
 			{
-				Assert.DoesNotThrow(() => package.VerifyHashes());
-				Assert.DoesNotThrow(() => package.VerifyChunkHashes());
-				Assert.DoesNotThrow(() => package.VerifyFileChecksums());
+				await Assert.That(() => package.VerifyHashes()).ThrowsNothing();
+				await Assert.That(() => package.VerifyChunkHashes()).ThrowsNothing();
+				await Assert.That(() => package.VerifyFileChecksums()).ThrowsNothing();
 			}
 		}
 
-		private static PackageEntry AssertEntryData(Package package, string path, int length, byte seed)
+		private static async Task<PackageEntry> AssertEntryData(Package package, string path, int length, byte seed)
 		{
 			var entry = package.FindEntry(path);
-			Assert.That(entry, Is.Not.Null);
+			await Assert.That(entry).IsNotNull();
 
 			package.ReadEntry(entry, out var data);
-			Assert.That(data, Is.EqualTo(CreateTestData(length, seed)));
+			await Assert.That(data).IsEquivalentTo(CreateTestData(length, seed), CollectionOrdering.Matching);
 
 			return entry;
 		}
